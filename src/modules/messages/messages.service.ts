@@ -21,13 +21,10 @@ export class MessagesService {
 
   findMany(query: QueryMessagesDto): Promise<Message[]> {
     if (query.sender) return this.repository.findBySender(query.sender);
-    if (query.startDate && query.endDate) {
-      return this.repository.findByDateRange(
-        new Date(query.startDate),
-        new Date(query.endDate),
-      );
-    }
-    return this.repository.findAll();
+    return this.repository.findByDateRange(
+      new Date(query.startDate!),
+      new Date(query.endDate!),
+    );
   }
 
   async updateStatus(

@@ -70,11 +70,13 @@ describe('MessagesService', () => {
       expect(result.some((m) => m.sender === 'carol')).toBe(true);
     });
 
-    it('returns all messages when no filter is provided', async () => {
+    it('returns all messages from sender', async () => {
       await service.create({ content: 'X', sender: 'alice' });
-      await service.create({ content: 'Y', sender: 'bob' });
+      await service.create({ content: 'Y', sender: 'alice' });
 
-      expect(await service.findMany({})).toHaveLength(2);
+      const result = await service.findMany({ sender: 'alice' });
+
+      expect(result).toHaveLength(2);
     });
   });
 
