@@ -1,0 +1,15 @@
+services:
+  localstack:
+    image: localstack/localstack:3
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=dynamodb
+      - AWS_DEFAULT_REGION=us-east-1
+      - LOCALSTACK_HOST=localhost
+    volumes:
+      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/01-create-table.sh
+      - localstack_data:/var/lib/localstack
+
+volumes:
+  localstack_data:
