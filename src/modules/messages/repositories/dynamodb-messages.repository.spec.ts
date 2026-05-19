@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBMessagesRepository } from './dynamodb-messages.repository';
 import { MessageStatus } from '../entities/message.entity';
@@ -5,6 +6,9 @@ import { MessageStatus } from '../entities/message.entity';
 const ALICE = '550e8400-e29b-41d4-a716-446655440000';
 
 const mockClient = { send: jest.fn() } as unknown as DynamoDBDocumentClient;
+const mockConfig = {
+  get: jest.fn().mockReturnValue('Messages'),
+} as unknown as ConfigService;
 
 const rawItem = (overrides: object = {}) => ({
   PK: 'MSG#abc',
@@ -21,7 +25,7 @@ describe('DynamoDBMessagesRepository', () => {
   let repository: DynamoDBMessagesRepository;
 
   beforeEach(() => {
-    repository = new DynamoDBMessagesRepository(mockClient);
+    repository = new DynamoDBMessagesRepository(mockClient, mockConfig);
     jest.clearAllMocks();
   });
 
@@ -180,8 +184,14 @@ describe('DynamoDBMessagesRepository', () => {
       expect(days[0]).toBe('2026-05-10T17:00:40.676Z');
       expect(days[days.length - 1]).toBe('2026-05-19T18:00:40.676Z');
       expect(days.slice(1, -1)).toEqual([
-        '2026-05-11', '2026-05-12', '2026-05-13', '2026-05-14',
-        '2026-05-15', '2026-05-16', '2026-05-17', '2026-05-18',
+        '2026-05-11',
+        '2026-05-12',
+        '2026-05-13',
+        '2026-05-14',
+        '2026-05-15',
+        '2026-05-16',
+        '2026-05-17',
+        '2026-05-18',
       ]);
       expect(days).toHaveLength(10);
     });

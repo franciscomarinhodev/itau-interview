@@ -134,7 +134,10 @@ export class AuthService {
       name === 'TooManyRequestsException'
     ) {
       this.logger.warn({ ...ctx }, 'cognito rate limit reached');
-      throw new HttpException('Too many requests', HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException(
+        'Too many requests',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     if (

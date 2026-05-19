@@ -82,6 +82,40 @@ describe('QueryMessagesDto', () => {
     });
   });
 
+  describe('date range limit (90 days)', () => {
+    it('passes when range is exactly 90 days', async () => {
+      const start = '2025-01-01T00:00:00.000Z';
+      const end = new Date(
+        new Date(start).getTime() + 90 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const errors = await validate(build({ startDate: start, endDate: end }));
+      expect(errors.some((e) => e.property === 'endDate')).toBe(false);
+    });
+
+    it('fails when range exceeds 90 days', async () => {
+      const start = '2025-01-01T00:00:00.000Z';
+      const end = new Date(
+        new Date(start).getTime() + 91 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const errors = await validate(build({ startDate: start, endDate: end }));
+      const messages = errors.flatMap((e) =>
+        Object.values(e.constraints ?? {}),
+      );
+      expect(messages.some((m) => m.includes('90 days'))).toBe(true);
+    });
+
+    it('does not apply the 90-day limit when sender is provided', async () => {
+      const start = '2025-01-01T00:00:00.000Z';
+      const end = new Date(
+        new Date(start).getTime() + 200 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const errors = await validate(
+        build({ sender: SENDER_UUID, startDate: start, endDate: end }),
+      );
+      expect(errors).toHaveLength(0);
+    });
+  });
+
   describe('sender takes priority over dates', () => {
     it('passes when sender UUID is present even with missing dates', async () => {
       const errors = await validate(build({ sender: SENDER_UUID }));

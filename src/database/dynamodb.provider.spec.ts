@@ -1,9 +1,21 @@
+import { ConfigService } from '@nestjs/config';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { dynamoDBProvider, DYNAMODB_CLIENT } from './dynamodb.provider';
 
-type FactoryProvider = { provide: string; useFactory: () => unknown };
+type FactoryProvider = {
+  provide: string;
+  useFactory: (config: ConfigService) => unknown;
+};
 const provider = dynamoDBProvider as FactoryProvider;
 const factory = provider.useFactory;
+
+const makeConfig = () =>
+  ({
+    get: <T>(key: string, defaultValue?: T): T | undefined => {
+      const val = process.env[key];
+      return (val !== undefined ? val : defaultValue) as T | undefined;
+    },
+  }) as unknown as ConfigService;
 
 describe('dynamoDBProvider', () => {
   const originalRegion = process.env.AWS_REGION;
@@ -23,7 +35,7 @@ describe('dynamoDBProvider', () => {
 
   it('factory returns a DynamoDBDocumentClient instance', () => {
     delete process.env.DYNAMODB_ENDPOINT;
-    const client = factory();
+    const client = factory(makeConfig());
     expect(client).toBeInstanceOf(DynamoDBDocumentClient);
   });
 
@@ -31,7 +43,7 @@ describe('dynamoDBProvider', () => {
     process.env.AWS_REGION = 'eu-west-1';
     delete process.env.DYNAMODB_ENDPOINT;
 
-    const client = factory() as DynamoDBDocumentClient;
+    const client = factory(makeConfig()) as DynamoDBDocumentClient;
 
     expect(client).toBeInstanceOf(DynamoDBDocumentClient);
   });
@@ -40,7 +52,7 @@ describe('dynamoDBProvider', () => {
     delete process.env.AWS_REGION;
     delete process.env.DYNAMODB_ENDPOINT;
 
-    const client = factory() as DynamoDBDocumentClient;
+    const client = factory(makeConfig()) as DynamoDBDocumentClient;
 
     expect(client).toBeInstanceOf(DynamoDBDocumentClient);
   });
@@ -48,7 +60,7 @@ describe('dynamoDBProvider', () => {
   it('factory includes endpoint when DYNAMODB_ENDPOINT is set', () => {
     process.env.DYNAMODB_ENDPOINT = 'http://localhost:4566';
 
-    const client = factory() as DynamoDBDocumentClient;
+    const client = factory(makeConfig()) as DynamoDBDocumentClient;
 
     expect(client).toBeInstanceOf(DynamoDBDocumentClient);
   });

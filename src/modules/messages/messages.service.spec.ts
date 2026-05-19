@@ -67,7 +67,9 @@ describe('MessagesService', () => {
     it('throws NotFoundException when repository returns undefined', async () => {
       repo.findById.mockResolvedValue(undefined);
 
-      await expect(service.findById('ghost')).rejects.toThrow(NotFoundException);
+      await expect(service.findById('ghost')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 

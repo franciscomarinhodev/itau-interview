@@ -6,9 +6,9 @@ import {
   IsUUID,
   ValidateIf,
 } from 'class-validator';
+import { FILTER_REQUIRED, MaxDateRangeDays } from './max-date-range.decorator';
 
-const FILTER_REQUIRED =
-  'GET /api/v1/messages requires "sender" or both "startDate" and "endDate" (ISO 8601)';
+import { MAX_QUERY_RANGE_DAYS as MAX_RANGE_DAYS } from '../../../config/constants';
 
 export class QueryMessagesDto {
   @ApiPropertyOptional({
@@ -21,7 +21,9 @@ export class QueryMessagesDto {
 
   @ApiPropertyOptional({
     example: '2025-01-31T00:00:00.000Z',
-    description: 'Range start (ISO 8601). Required when sender is absent.',
+    description:
+      'Range start (ISO 8601). Required when sender is absent. ' +
+      `Maximum range is ${MAX_RANGE_DAYS} days.`,
   })
   @ValidateIf((o: QueryMessagesDto) => !o.sender)
   @IsDateString(
@@ -36,7 +38,9 @@ export class QueryMessagesDto {
 
   @ApiPropertyOptional({
     example: '2025-01-31T23:59:59.000Z',
-    description: 'Range end (ISO 8601). Required when sender is absent.',
+    description:
+      `Range end (ISO 8601). Required when sender is absent. ` +
+      `Must be at most ${MAX_RANGE_DAYS} days after startDate.`,
   })
   @ValidateIf((o: QueryMessagesDto) => !o.sender)
   @IsDateString(
@@ -47,5 +51,7 @@ export class QueryMessagesDto {
     },
   )
   @IsNotEmpty({ message: FILTER_REQUIRED })
+  @ValidateIf((o: QueryMessagesDto) => !o.sender)
+  @MaxDateRangeDays(MAX_RANGE_DAYS)
   endDate?: string;
 }

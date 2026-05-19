@@ -2,10 +2,15 @@ import {
   CognitoIdentityProviderClient,
   InvalidPasswordException,
   NotAuthorizedException,
+  ResourceNotFoundException,
   TooManyRequestsException,
   UserNotFoundException,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { HttpException, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import {
+  HttpException,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
@@ -47,9 +52,17 @@ describe('AuthService', () => {
           provide: ConfigService,
           useValue: {
             getOrThrow: (key: string) =>
-              ({ AWS_REGION, COGNITO_CLIENT_ID: CLIENT_ID, COGNITO_CLIENT_SECRET: CLIENT_SECRET })[key],
+              ({
+                AWS_REGION,
+                COGNITO_CLIENT_ID: CLIENT_ID,
+                COGNITO_CLIENT_SECRET: CLIENT_SECRET,
+              })[key],
             get: (key: string) =>
-              ({ AWS_REGION, COGNITO_CLIENT_ID: CLIENT_ID, COGNITO_CLIENT_SECRET: CLIENT_SECRET })[key],
+              ({
+                AWS_REGION,
+                COGNITO_CLIENT_ID: CLIENT_ID,
+                COGNITO_CLIENT_SECRET: CLIENT_SECRET,
+              })[key],
           },
         },
       ],
@@ -184,6 +197,52 @@ describe('AuthService', () => {
       await expect(
         service.refresh('user@example.com', 'bad-token'),
       ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('ResourceNotFoundException', () => {
+    it('throws InternalServerErrorException on ResourceNotFoundException in login', async () => {
+      mockSend.mockRejectedValue(
+        new ResourceNotFoundException({
+          message: 'User pool not found',
+          $metadata: {},
+        }),
+      );
+      await expect(service.login('user@example.com', 'pass')).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+
+    it('throws InternalServerErrorException on ResourceNotFoundException in refresh', async () => {
+      mockSend.mockRejectedValue(
+        new ResourceNotFoundException({
+          message: 'User pool not found',
+          $metadata: {},
+        }),
+      );
+      await expect(
+        service.refresh('user@example.com', 'token'),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+  });
+
+  describe('constructor guard', () => {
+    it('throws when COGNITO_CLIENT_ID resolves to an empty string', async () => {
+      await expect(
+        Test.createTestingModule({
+          providers: [
+            AuthService,
+            {
+              provide: ConfigService,
+              useValue: {
+                getOrThrow: (key: string) =>
+                  ({ AWS_REGION: 'us-east-1', COGNITO_CLIENT_ID: '' })[key],
+                get: () => undefined,
+              },
+            },
+          ],
+        }).compile(),
+      ).rejects.toThrow('COGNITO_CLIENT_ID is empty');
     });
   });
 });

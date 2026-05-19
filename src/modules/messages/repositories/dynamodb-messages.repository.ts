@@ -1,8 +1,10 @@
 import { randomUUID } from 'crypto';
 import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { DYNAMODB_CLIENT } from '../../../database/dynamodb.provider';
 import { DynamoDBRepository } from '../../../database/dynamodb.repository';
+import { DEFAULT_DYNAMODB_TABLE } from '../../../config/constants';
 import { Message, MessageStatus } from '../entities/message.entity';
 import { MessagesRepository } from './messages.repository.abstract';
 
@@ -11,13 +13,20 @@ export class DynamoDBMessagesRepository
   extends DynamoDBRepository
   implements MessagesRepository
 {
-  protected readonly tableName = process.env.DYNAMODB_TABLE ?? 'Messages';
+  protected readonly tableName: string;
 
   private readonly GSI_DATE = 'GSI_DATE';
   private readonly GSI_SENDER = 'GSI_SENDER';
 
-  constructor(@Inject(DYNAMODB_CLIENT) client: DynamoDBDocumentClient) {
+  constructor(
+    @Inject(DYNAMODB_CLIENT) client: DynamoDBDocumentClient,
+    config: ConfigService,
+  ) {
     super(client);
+    this.tableName = config.get<string>(
+      'DYNAMODB_TABLE',
+      DEFAULT_DYNAMODB_TABLE,
+    );
   }
 
   // ------------------------------------------------------------------ writes
