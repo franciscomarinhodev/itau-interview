@@ -1,0 +1,47 @@
+# EKS Fargate uses a built-in Fluent Bit sidecar to ship pod logs.
+# This ConfigMap in the aws-observability namespace instructs it to forward
+# all logs to the CloudWatch log group created by Terraform (monitoring.tf).
+#
+# Apply before deploying pods:
+#   kubectl apply -f k8s/fluent-bit-logging.yaml
+#
+# The log group name must match the Terraform output `pod_log_group_name`:
+#   terraform output pod_log_group_name
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aws-observability
+  labels:
+    aws-observability: enabled
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-logging
+  namespace: aws-observability
+data:
+  # Parse JSON log lines emitted by Pino so fields are indexed individually
+  filters.conf: |
+    [FILTER]
+        Name                parser
+        Match               *
+        Key_Name            log
+        Parser              json
+        Reserve_Data        True
+        Preserve_Key        True
+
+  # Forward to the CloudWatch log group created by Terraform.
+  # Replace <CLUSTER_NAME> and <REGION> with actual values,
+  # or inject them at deploy time via envsubst / Helm values.
+  output.conf: |
+    [OUTPUT]
+        Name                cloudwatch_logs
+        Match               *
+        region              ${AWS_REGION}
+        log_group_name      /aws/eks/${CLUSTER_NAME}/pods
+        log_stream_prefix   fluent-bit-
+        auto_create_group   false
+        retry_limit         2

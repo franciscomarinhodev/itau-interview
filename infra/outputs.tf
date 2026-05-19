@@ -50,3 +50,13 @@ output "app_iam_role_arn" {
   description = "IAM role ARN for the app pods (IRSA) — use in serviceaccount.yaml annotation"
   value       = aws_iam_role.app.arn
 }
+
+output "pod_log_group_name" {
+  description = "CloudWatch log group for EKS Fargate pod logs — configure in fluent-bit-logging.yaml"
+  value       = aws_cloudwatch_log_group.pods.name
+}
+
+output "alarms_sns_topic_arn" {
+  description = "SNS topic ARN for CloudWatch alarm notifications"
+  value       = aws_sns_topic.alarms.arn
+}

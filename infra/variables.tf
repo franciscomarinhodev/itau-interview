@@ -37,3 +37,21 @@ variable "dynamodb_table" {
   type    = string
   default = "Messages"
 }
+
+variable "alarm_notification_email" {
+  type        = string
+  default     = ""
+  description = "Email address for CloudWatch alarm notifications. Leave empty to skip SNS subscription."
+}
+
+variable "alarm_latency_p99_ms" {
+  type        = number
+  default     = 2000
+  description = "P99 end-to-end latency threshold (ms) before the alarm fires."
+}
+
+variable "alarm_integration_latency_p99_ms" {
+  type        = number
+  default     = 1500
+  description = "P99 integration (backend) latency threshold (ms) before the alarm fires."
+}
