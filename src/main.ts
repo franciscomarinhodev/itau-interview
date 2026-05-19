@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
+import { runInCluster } from './cluster';
 import { setupSwagger } from './config/swagger.config';
 import { validationConfig } from './config/validation.config';
 
@@ -19,4 +20,9 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT ?? 3000);
 }
-bootstrap();
+
+if (process.env.CLUSTER_MODE === 'true') {
+  runInCluster(bootstrap);
+} else {
+  bootstrap();
+}
