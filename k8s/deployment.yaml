@@ -45,11 +45,11 @@ spec:
 
           resources:
             requests:
-              cpu: "256m"
-              memory: "512Mi"
+              cpu: "2"
+              memory: "4Gi"
             limits:
-              cpu: "512m"
-              memory: "1Gi"
+              cpu: "2"
+              memory: "4Gi"
 
           livenessProbe:
             httpGet:

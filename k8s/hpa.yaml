@@ -16,7 +16,7 @@ spec:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 70
+          averageUtilization: 75  # 75% of 2 vCPU = 1.5 CPUs triggers scale-out
     - type: Resource
       resource:
         name: memory
