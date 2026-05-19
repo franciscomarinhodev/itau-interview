@@ -21,6 +21,11 @@ describe('dynamoDBProvider', () => {
   const originalRegion = process.env.AWS_REGION;
   const originalEndpoint = process.env.DYNAMODB_ENDPOINT;
 
+  beforeEach(() => {
+    delete process.env.AWS_REGION;
+    delete process.env.DYNAMODB_ENDPOINT;
+  });
+
   afterEach(() => {
     if (originalRegion === undefined) delete process.env.AWS_REGION;
     else process.env.AWS_REGION = originalRegion;

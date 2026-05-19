@@ -25,7 +25,9 @@ describe('Health API (e2e)', () => {
     jest.clearAllMocks();
   });
 
-  afterEach(() => app.close());
+  afterEach(async () => {
+    await app?.close();
+  });
 
   // ────────────────────────────────────── GET /health/liveness ─────────────
 
