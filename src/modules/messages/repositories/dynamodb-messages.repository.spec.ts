@@ -96,13 +96,13 @@ describe('DynamoDBMessagesRepository', () => {
   });
 
   describe('findByDateRange', () => {
-    it('queries GSI_DATE once for a same-day range', async () => {
+    it('same-day range: single query using exact start and end times as SK bounds', async () => {
       const queryItems = jest
         .spyOn(repository as any, 'queryItems')
         .mockResolvedValue([rawItem()]);
 
-      const start = new Date('2025-02-10T00:00:00.000Z');
-      const end = new Date('2025-02-10T23:59:59.000Z');
+      const start = new Date('2025-02-10T10:30:00.000Z');
+      const end = new Date('2025-02-10T18:45:00.000Z');
 
       await repository.findByDateRange(start, end);
 
@@ -112,26 +112,42 @@ describe('DynamoDBMessagesRepository', () => {
           indexName: 'GSI_DATE',
           expressionValues: expect.objectContaining({
             ':pk': 'MESSAGES#2025-02-10',
+            ':start': '2025-02-10T10:30:00.000Z#',
+            ':end': '2025-02-10T18:45:00.000Z#~',
           }),
         }),
       );
     });
 
-    it('queries once per day for a multi-day range', async () => {
+    it('multi-day range: queries once per day', async () => {
       const queryItems = jest
         .spyOn(repository as any, 'queryItems')
         .mockResolvedValue([]);
 
-      const start = new Date('2025-02-10T00:00:00.000Z');
-      const end = new Date('2025-02-12T23:59:59.000Z');
+      const start = new Date('2025-02-10T09:00:00.000Z');
+      const end = new Date('2025-02-12T17:00:00.000Z');
 
       await repository.findByDateRange(start, end);
 
       expect(queryItems).toHaveBeenCalledTimes(3);
+    });
+
+    it('multi-day range: first day uses startDate time, middle uses full bounds, last day uses endDate time', async () => {
+      const queryItems = jest
+        .spyOn(repository as any, 'queryItems')
+        .mockResolvedValue([]);
+
+      const start = new Date('2025-02-10T09:00:00.000Z');
+      const end = new Date('2025-02-12T17:00:00.000Z');
+
+      await repository.findByDateRange(start, end);
+
       expect(queryItems).toHaveBeenCalledWith(
         expect.objectContaining({
           expressionValues: expect.objectContaining({
             ':pk': 'MESSAGES#2025-02-10',
+            ':start': '2025-02-10T09:00:00.000Z#',
+            ':end': '2025-02-10T23:59:59.999Z#~',
           }),
         }),
       );
@@ -139,6 +155,8 @@ describe('DynamoDBMessagesRepository', () => {
         expect.objectContaining({
           expressionValues: expect.objectContaining({
             ':pk': 'MESSAGES#2025-02-11',
+            ':start': '2025-02-11T00:00:00.000Z#',
+            ':end': '2025-02-11T23:59:59.999Z#~',
           }),
         }),
       );
@@ -146,25 +164,26 @@ describe('DynamoDBMessagesRepository', () => {
         expect.objectContaining({
           expressionValues: expect.objectContaining({
             ':pk': 'MESSAGES#2025-02-12',
+            ':start': '2025-02-12T00:00:00.000Z#',
+            ':end': '2025-02-12T17:00:00.000Z#~',
           }),
         }),
       );
     });
 
-    it('filters out items outside the exact range boundaries', async () => {
-      const start = new Date('2025-02-10T12:00:00.000Z');
-      const end = new Date('2025-02-10T18:00:00.000Z');
+    it('getDaysInRange returns ISO timestamp for first and last, date-only for middle days', () => {
+      const start = new Date('2026-05-10T17:00:40.676Z');
+      const end = new Date('2026-05-19T18:00:40.676Z');
 
-      jest.spyOn(repository as any, 'queryItems').mockResolvedValue([
-        rawItem({ sentAt: '2025-02-10T10:00:00.000Z' }), // before start — excluded
-        rawItem({ id: 'in', sentAt: '2025-02-10T14:00:00.000Z' }), // within range
-        rawItem({ sentAt: '2025-02-10T20:00:00.000Z' }), // after end — excluded
+      const days = (repository as any).getDaysInRange(start, end);
+
+      expect(days[0]).toBe('2026-05-10T17:00:40.676Z');
+      expect(days[days.length - 1]).toBe('2026-05-19T18:00:40.676Z');
+      expect(days.slice(1, -1)).toEqual([
+        '2026-05-11', '2026-05-12', '2026-05-13', '2026-05-14',
+        '2026-05-15', '2026-05-16', '2026-05-17', '2026-05-18',
       ]);
-
-      const result = await repository.findByDateRange(start, end);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('in');
+      expect(days).toHaveLength(10);
     });
   });
 

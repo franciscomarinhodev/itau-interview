@@ -1,22 +1,40 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { InMemoryMessagesRepository } from './messages.repository';
 import { MessagesService } from './messages.service';
 import { MessagesRepository } from './repositories/messages.repository.abstract';
-import { MessageStatus } from './entities/message.entity';
+import { Message, MessageStatus } from './entities/message.entity';
 
 const ALICE = '550e8400-e29b-41d4-a716-446655440000';
 const BOB = '550e8400-e29b-41d4-a716-446655440001';
 const CAROL = '550e8400-e29b-41d4-a716-446655440002';
 
+const makeMessage = (overrides: Partial<Message> = {}): Message => ({
+  id: 'uuid-1',
+  content: 'Hello',
+  sender: ALICE,
+  status: MessageStatus.SENT,
+  sentAt: new Date('2024-01-01T00:00:00Z'),
+  ...overrides,
+});
+
 describe('MessagesService', () => {
   let service: MessagesService;
+  let repo: jest.Mocked<MessagesRepository>;
 
   beforeEach(async () => {
+    repo = {
+      create: jest.fn(),
+      findById: jest.fn(),
+      findBySender: jest.fn(),
+      findByDateRange: jest.fn(),
+      findAll: jest.fn(),
+      updateStatus: jest.fn(),
+    } as unknown as jest.Mocked<MessagesRepository>;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MessagesService,
-        { provide: MessagesRepository, useClass: InMemoryMessagesRepository },
+        { provide: MessagesRepository, useValue: repo },
       ],
     }).compile();
 
@@ -24,78 +42,90 @@ describe('MessagesService', () => {
   });
 
   describe('create', () => {
-    it('creates a message with SENT status and a uuid', async () => {
-      const msg = await service.create({ content: 'Hello', sender: ALICE });
+    it('delegates to repository and returns the created message', async () => {
+      const message = makeMessage();
+      repo.create.mockResolvedValue(message);
 
-      expect(msg.id).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-      );
-      expect(msg.content).toBe('Hello');
-      expect(msg.sender).toBe(ALICE);
-      expect(msg.status).toBe(MessageStatus.SENT);
-      expect(msg.sentAt).toBeInstanceOf(Date);
+      const result = await service.create({ content: 'Hello', sender: ALICE });
+
+      expect(repo.create).toHaveBeenCalledWith('Hello', ALICE);
+      expect(result).toEqual(message);
     });
   });
 
   describe('findById', () => {
     it('returns the message when found', async () => {
-      const created = await service.create({ content: 'Hi', sender: BOB });
-      expect(await service.findById(created.id)).toEqual(created);
+      const message = makeMessage({ id: 'uuid-42' });
+      repo.findById.mockResolvedValue(message);
+
+      const result = await service.findById('uuid-42');
+
+      expect(repo.findById).toHaveBeenCalledWith('uuid-42');
+      expect(result).toEqual(message);
     });
 
-    it('throws NotFoundException for unknown id', async () => {
-      await expect(service.findById('ghost')).rejects.toThrow(
-        NotFoundException,
-      );
+    it('throws NotFoundException when repository returns undefined', async () => {
+      repo.findById.mockResolvedValue(undefined);
+
+      await expect(service.findById('ghost')).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('findMany', () => {
-    it('filters by sender', async () => {
-      await service.create({ content: 'A', sender: ALICE });
-      await service.create({ content: 'B', sender: BOB });
-      await service.create({ content: 'C', sender: ALICE });
+    it('delegates to findBySender when sender is provided', async () => {
+      const messages = [makeMessage(), makeMessage({ id: 'uuid-2' })];
+      repo.findBySender.mockResolvedValue(messages);
 
       const result = await service.findMany({ sender: ALICE });
 
-      expect(result).toHaveLength(2);
-      expect(result.every((m) => m.sender === ALICE)).toBe(true);
+      expect(repo.findBySender).toHaveBeenCalledWith(ALICE);
+      expect(result).toEqual(messages);
     });
 
-    it('filters by date range', async () => {
-      const before = new Date(Date.now() - 5000);
-      await service.create({ content: 'Now', sender: CAROL });
-      const after = new Date(Date.now() + 5000);
+    it('delegates to findByDateRange when date range is provided', async () => {
+      const start = '2024-01-01T00:00:00.000Z';
+      const end = '2024-01-02T00:00:00.000Z';
+      const messages = [makeMessage({ sender: CAROL })];
+      repo.findByDateRange.mockResolvedValue(messages);
 
-      const result = await service.findMany({
-        startDate: before.toISOString(),
-        endDate: after.toISOString(),
-      });
+      const result = await service.findMany({ startDate: start, endDate: end });
 
-      expect(result.length).toBeGreaterThanOrEqual(1);
-      expect(result.some((m) => m.sender === CAROL)).toBe(true);
+      expect(repo.findByDateRange).toHaveBeenCalledWith(
+        new Date(start),
+        new Date(end),
+      );
+      expect(result).toEqual(messages);
     });
 
-    it('returns all messages from sender', async () => {
-      await service.create({ content: 'X', sender: ALICE });
-      await service.create({ content: 'Y', sender: ALICE });
+    it('returns empty array when sender has no messages', async () => {
+      repo.findBySender.mockResolvedValue([]);
 
-      const result = await service.findMany({ sender: ALICE });
+      const result = await service.findMany({ sender: BOB });
 
-      expect(result).toHaveLength(2);
+      expect(result).toEqual([]);
     });
   });
 
   describe('updateStatus', () => {
-    it('updates the status of an existing message', async () => {
-      const created = await service.create({ content: 'Hi', sender: ALICE });
-      const updated = await service.updateStatus(created.id, {
+    it('updates and returns the message with the new status', async () => {
+      const updated = makeMessage({ status: MessageStatus.READ });
+      repo.findById.mockResolvedValue(makeMessage());
+      repo.updateStatus.mockResolvedValue(updated);
+
+      const result = await service.updateStatus('uuid-1', {
         status: MessageStatus.READ,
       });
-      expect(updated.status).toBe(MessageStatus.READ);
+
+      expect(repo.updateStatus).toHaveBeenCalledWith(
+        'uuid-1',
+        MessageStatus.READ,
+      );
+      expect(result.status).toBe(MessageStatus.READ);
     });
 
-    it('throws NotFoundException for unknown id', async () => {
+    it('throws NotFoundException when message does not exist', async () => {
+      repo.findById.mockResolvedValue(undefined);
+
       await expect(
         service.updateStatus('ghost', { status: MessageStatus.RECEIVED }),
       ).rejects.toThrow(NotFoundException);

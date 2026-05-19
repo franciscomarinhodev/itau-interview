@@ -80,26 +80,34 @@ export class DynamoDBMessagesRepository
 
   async findByDateRange(startDate: Date, endDate: Date): Promise<Message[]> {
     const days = this.getDaysInRange(startDate, endDate);
+    const firstDay = days[0];
+    const lastDay = days[days.length - 1];
+    const isSingleDay = days.length === 1;
 
     const pages = await Promise.all(
-      days.map((day) =>
-        this.queryItems({
+      days.map((day) => {
+        const dateOnly = day.slice(0, 10);
+
+        const startSk =
+          day === firstDay ? `${day}#` : `${dateOnly}T00:00:00.000Z#`;
+        const endSk =
+          day === lastDay
+            ? `${isSingleDay ? endDate.toISOString() : day}#~`
+            : `${dateOnly}T23:59:59.999Z#~`;
+        return this.queryItems({
           indexName: this.GSI_DATE,
           keyCondition:
             'GSI_DATE_PK = :pk AND GSI_DATE_SK BETWEEN :start AND :end',
           expressionValues: {
-            ':pk': `MESSAGES#${day}`,
-            ':start': `${day}T00:00:00.000Z#`,
-            ':end': `${day}T23:59:59.999Z#~`,
+            ':pk': `MESSAGES#${dateOnly}`,
+            ':start': startSk,
+            ':end': endSk,
           },
-        }),
-      ),
+        });
+      }),
     );
 
-    return pages
-      .flat()
-      .map(this.toEntity)
-      .filter((m) => m.sentAt >= startDate && m.sentAt <= endDate);
+    return pages.flat().map(this.toEntity);
   }
 
   async findAll(): Promise<Message[]> {
@@ -127,18 +135,33 @@ export class DynamoDBMessagesRepository
   }
 
   private getDaysInRange(start: Date, end: Date): string[] {
-    const days: string[] = [];
+    const startDateOnly = start.toISOString().slice(0, 10);
+    const endDateOnly = end.toISOString().slice(0, 10);
+
+    if (startDateOnly === endDateOnly) {
+      return [start.toISOString()];
+    }
+
+    const days: string[] = [start.toISOString()];
+
     const cursor = new Date(
-      Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()),
+      Date.UTC(
+        start.getUTCFullYear(),
+        start.getUTCMonth(),
+        start.getUTCDate() + 1,
+      ),
     );
-    const last = new Date(
+    const endMidnight = new Date(
       Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()),
     );
 
-    while (cursor <= last) {
+    while (cursor < endMidnight) {
       days.push(cursor.toISOString().slice(0, 10));
       cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
+
+    days.push(end.toISOString());
+
     return days;
   }
 

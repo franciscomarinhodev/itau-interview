@@ -1,11 +1,33 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, Injectable, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { randomUUID } from 'crypto';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { DYNAMODB_CLIENT } from '../src/database/dynamodb.provider';
-import { InMemoryMessagesRepository } from '../src/modules/messages/messages.repository';
+import { Message, MessageStatus } from '../src/modules/messages/entities/message.entity';
 import { MessagesRepository } from '../src/modules/messages/repositories/messages.repository.abstract';
+
+@Injectable()
+class LocalMessagesRepository extends MessagesRepository {
+  private readonly store = new Map<string, Message>();
+
+  async create(content: string, sender: string): Promise<Message> {
+    const message: Message = { id: randomUUID(), content, sender, sentAt: new Date(), status: MessageStatus.SENT };
+    this.store.set(message.id, message);
+    return message;
+  }
+  async findById(id: string) { return this.store.get(id); }
+  async findBySender(sender: string) { return [...this.store.values()].filter((m) => m.sender === sender); }
+  async findByDateRange(start: Date, end: Date) { return [...this.store.values()].filter((m) => m.sentAt >= start && m.sentAt <= end); }
+  async findAll() { return [...this.store.values()]; }
+  async updateStatus(id: string, status: MessageStatus) {
+    const msg = this.store.get(id);
+    if (!msg) return undefined;
+    msg.status = status;
+    return msg;
+  }
+}
 
 const BASE = '/api/v1/messages';
 
@@ -24,7 +46,7 @@ describe('Messages API (e2e)', () => {
       .overrideProvider(DYNAMODB_CLIENT)
       .useValue({ send: jest.fn() })
       .overrideProvider(MessagesRepository)
-      .useClass(InMemoryMessagesRepository)
+      .useClass(LocalMessagesRepository)
       .overrideGuard(ThrottlerGuard)
       .useValue({ canActivate: () => true })
       .compile();
