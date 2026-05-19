@@ -40,19 +40,21 @@ export class DynamoDBMessagesRepository
       status: MessageStatus.SENT,
     };
 
-    await this.putItem({
-      PK: this.pk(message.id),
-      SK: this.pk(message.id),
-      GSI_DATE_PK: this.gsiDatePk(message.sentAt),
-      GSI_DATE_SK: this.compositeSort(message.sentAt, message.id),
-      GSI_SENDER_PK: this.gsiSenderPk(message.sender),
-      GSI_SENDER_SK: this.compositeSort(message.sentAt, message.id),
-      id: message.id,
-      content: message.content,
-      sender: message.sender,
-      sentAt: message.sentAt.toISOString(),
-      status: message.status,
-    });
+    await this.putItem(
+      {
+        PK: this.pk(message.id),
+        GSI_DATE_PK: this.gsiDatePk(message.sentAt),
+        GSI_DATE_SK: this.compositeSort(message.sentAt, message.id),
+        GSI_SENDER_PK: this.gsiSenderPk(message.sender),
+        GSI_SENDER_SK: this.compositeSort(message.sentAt, message.id),
+        id: message.id,
+        content: message.content,
+        sender: message.sender,
+        sentAt: message.sentAt.toISOString(),
+        status: message.status,
+      },
+      { conditionExpression: 'attribute_not_exists(PK)' },
+    );
 
     return message;
   }
@@ -62,7 +64,7 @@ export class DynamoDBMessagesRepository
     status: MessageStatus,
   ): Promise<Message | undefined> {
     const item = await this.updateItem({
-      key: { PK: this.pk(id), SK: this.pk(id) },
+      key: { PK: this.pk(id) },
       updateExpression: 'SET #s = :status',
       expressionNames: { '#s': 'status' },
       expressionValues: { ':status': status },
@@ -74,7 +76,7 @@ export class DynamoDBMessagesRepository
   // ------------------------------------------------------------------- reads
 
   async findById(id: string): Promise<Message | undefined> {
-    const item = await this.getItem({ PK: this.pk(id), SK: this.pk(id) });
+    const item = await this.getItem({ PK: this.pk(id) });
     return item ? this.toEntity(item) : undefined;
   }
 

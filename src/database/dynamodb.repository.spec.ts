@@ -1,6 +1,7 @@
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import {
   DynamoDBRepository,
+  PutOptions,
   QueryOptions,
   ScanOptions,
   UpdateOptions,
@@ -9,8 +10,8 @@ import {
 class ConcreteRepository extends DynamoDBRepository {
   protected readonly tableName = 'TestTable';
 
-  callPutItem(item: Record<string, unknown>) {
-    return this.putItem(item);
+  callPutItem(item: Record<string, unknown>, options?: PutOptions) {
+    return this.putItem(item, options);
   }
 
   callGetItem(key: Record<string, unknown>) {
@@ -48,12 +49,27 @@ describe('DynamoDBRepository', () => {
     it('sends a PutCommand with the correct TableName and Item', async () => {
       send.mockResolvedValue({});
 
-      await repo.callPutItem({ PK: 'A', SK: 'A', value: 1 });
+      await repo.callPutItem({ PK: 'A', value: 1 });
 
       expect(send).toHaveBeenCalledTimes(1);
       const command = send.mock.calls[0][0];
       expect(command.input.TableName).toBe('TestTable');
-      expect(command.input.Item).toEqual({ PK: 'A', SK: 'A', value: 1 });
+      expect(command.input.Item).toEqual({ PK: 'A', value: 1 });
+      expect(command.input.ConditionExpression).toBeUndefined();
+    });
+
+    it('includes ConditionExpression when provided', async () => {
+      send.mockResolvedValue({});
+
+      await repo.callPutItem(
+        { PK: 'A', value: 1 },
+        {
+          conditionExpression: 'attribute_not_exists(PK)',
+        },
+      );
+
+      const command = send.mock.calls[0][0];
+      expect(command.input.ConditionExpression).toBe('attribute_not_exists(PK)');
     });
   });
 

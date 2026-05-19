@@ -5,7 +5,6 @@
 | Atributo | Tipo | Exemplo |
 |---|---|---|
 | **PK** | String | `MSG#msg-abc123` |
-| **SK** | String | `MSG#msg-abc123` |
 | `GSI_DATE_PK` | String | `MESSAGES#2025-02-10` |
 | `GSI_DATE_SK` | String | `2025-02-10T14:00:00#msg-abc123` |
 | `GSI_SENDER_PK` | String | `SENDER#user-xyz` |

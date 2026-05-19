@@ -22,6 +22,10 @@ export interface ScanOptions {
   expressionNames?: Record<string, string>;
 }
 
+export interface PutOptions {
+  conditionExpression?: string;
+}
+
 export interface UpdateOptions {
   key: Record<string, unknown>;
   updateExpression: string;
@@ -38,9 +42,18 @@ export abstract class DynamoDBRepository {
     private readonly client: DynamoDBDocumentClient,
   ) {}
 
-  protected async putItem(item: Record<string, unknown>): Promise<void> {
+  protected async putItem(
+    item: Record<string, unknown>,
+    options: PutOptions = {},
+  ): Promise<void> {
     await this.client.send(
-      new PutCommand({ TableName: this.tableName, Item: item }),
+      new PutCommand({
+        TableName: this.tableName,
+        Item: item,
+        ...(options.conditionExpression && {
+          ConditionExpression: options.conditionExpression,
+        }),
+      }),
     );
   }
 

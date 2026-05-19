@@ -12,7 +12,6 @@ const mockConfig = {
 
 const rawItem = (overrides: object = {}) => ({
   PK: 'MSG#abc',
-  SK: 'MSG#abc',
   id: 'abc',
   content: 'Hello',
   sender: ALICE,
@@ -42,9 +41,13 @@ describe('DynamoDBMessagesRepository', () => {
       expect(result.status).toBe(MessageStatus.SENT);
       expect(result.sentAt).toBeInstanceOf(Date);
 
-      const item = putItem.mock.calls[0][0] as Record<string, unknown>;
+      const [item, options] = putItem.mock.calls[0] as [
+        Record<string, unknown>,
+        { conditionExpression: string },
+      ];
       expect(item.PK).toBe(`MSG#${result.id}`);
-      expect(item.SK).toBe(`MSG#${result.id}`);
+      expect(item.SK).toBeUndefined();
+      expect(options.conditionExpression).toBe('attribute_not_exists(PK)');
       expect(item.GSI_DATE_PK).toMatch(/^MESSAGES#\d{4}-\d{2}-\d{2}$/);
       expect(item.GSI_DATE_SK).toMatch(/^\d{4}-\d{2}-\d{2}T.*#.+$/);
       expect(item.GSI_SENDER_PK).toBe(`SENDER#${ALICE}`);
@@ -70,7 +73,7 @@ describe('DynamoDBMessagesRepository', () => {
 
       await repository.findById('abc');
 
-      expect(getItem).toHaveBeenCalledWith({ PK: 'MSG#abc', SK: 'MSG#abc' });
+      expect(getItem).toHaveBeenCalledWith({ PK: 'MSG#abc' });
     });
 
     it('returns undefined when item is not found', async () => {
@@ -218,7 +221,7 @@ describe('DynamoDBMessagesRepository', () => {
       const result = await repository.updateStatus('abc', MessageStatus.READ);
 
       expect(updateItem).toHaveBeenCalledWith(
-        expect.objectContaining({ key: { PK: 'MSG#abc', SK: 'MSG#abc' } }),
+        expect.objectContaining({ key: { PK: 'MSG#abc' } }),
       );
       expect(result?.status).toBe(MessageStatus.READ);
     });
