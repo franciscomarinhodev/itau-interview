@@ -150,7 +150,11 @@ All routes are prefixed with `/api/v1`.
 | GET | `/messages/:id` | Get a message by ID |
 | GET | `/messages?sender=<uuid>` | List messages by sender |
 | GET | `/messages?startDate=<iso>&endDate=<iso>` | List messages by date range |
-| PATCH | `/messages/:id/status` | Update message status (`sent` → `received` → `read`) |
+| PATCH | `/messages/:id/status` | Update message status |
+
+**Status values:** `sent` · `received` · `read`
+
+The API accepts any valid status value directly — it does not enforce a progression order. Clients are responsible for driving the transition in the intended sequence (`sent → received → read`).
 
 ### Health
 
@@ -158,6 +162,45 @@ All routes are prefixed with `/api/v1`.
 |---|---|---|
 | GET | `/health/liveness` | Always returns `{ "status": "ok" }` — K8s liveness probe |
 | GET | `/health/readiness` | Checks DynamoDB connectivity — K8s readiness probe |
+
+**Kubernetes behaviour:**
+- **Liveness** — if this fails, Kubernetes restarts the pod. It intentionally has no external dependency so a transient DynamoDB outage does not trigger unnecessary restarts.
+- **Readiness** — if this fails, Kubernetes removes the pod from the service's endpoint list and stops routing traffic to it until the dependency recovers.
+
+---
+
+## End-to-end flow (curl)
+
+```bash
+# 1. Authenticate
+TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"test@example.com","password":"TestPass123!"}' \
+  | jq -r '.accessToken')
+
+# 2. Create a message
+MESSAGE_ID=$(curl -s -X POST http://localhost:3000/api/v1/messages \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"Hello, world!","sender":"550e8400-e29b-41d4-a716-446655440000"}' \
+  | jq -r '.id')
+
+# 3. Fetch the message
+curl -s http://localhost:3000/api/v1/messages/$MESSAGE_ID \
+  -H "Authorization: Bearer $TOKEN" | jq
+
+# 4. Advance status to received
+curl -s -X PATCH http://localhost:3000/api/v1/messages/$MESSAGE_ID/status \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"received"}' | jq .status
+
+# 5. Advance status to read
+curl -s -X PATCH http://localhost:3000/api/v1/messages/$MESSAGE_ID/status \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"read"}' | jq .status
+```
 
 ---
 
