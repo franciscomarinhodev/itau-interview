@@ -1,10 +1,11 @@
 import {
   CognitoIdentityProviderClient,
+  InvalidPasswordException,
   NotAuthorizedException,
   TooManyRequestsException,
   UserNotFoundException,
 } from '@aws-sdk/client-cognito-identity-provider';
-import { HttpException, UnauthorizedException } from '@nestjs/common';
+import { HttpException, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
@@ -46,11 +47,9 @@ describe('AuthService', () => {
           provide: ConfigService,
           useValue: {
             getOrThrow: (key: string) =>
-              ({
-                AWS_REGION,
-                COGNITO_CLIENT_ID: CLIENT_ID,
-                COGNITO_CLIENT_SECRET: CLIENT_SECRET,
-              })[key],
+              ({ AWS_REGION, COGNITO_CLIENT_ID: CLIENT_ID, COGNITO_CLIENT_SECRET: CLIENT_SECRET })[key],
+            get: (key: string) =>
+              ({ AWS_REGION, COGNITO_CLIENT_ID: CLIENT_ID, COGNITO_CLIENT_SECRET: CLIENT_SECRET })[key],
           },
         },
       ],
@@ -111,6 +110,18 @@ describe('AuthService', () => {
       );
     });
 
+    it('throws UnauthorizedException on InvalidPasswordException', async () => {
+      mockSend.mockRejectedValue(
+        new InvalidPasswordException({
+          message: 'Invalid password',
+          $metadata: {},
+        }),
+      );
+      await expect(service.login('user@example.com', 'weak')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
     it('throws HttpException 429 on TooManyRequestsException', async () => {
       mockSend.mockRejectedValue(
         new TooManyRequestsException({
@@ -123,11 +134,10 @@ describe('AuthService', () => {
       );
     });
 
-    it('rethrows unknown errors', async () => {
-      const unexpected = new Error('Network error');
-      mockSend.mockRejectedValue(unexpected);
+    it('converts unknown errors to InternalServerErrorException', async () => {
+      mockSend.mockRejectedValue(new Error('Network error'));
       await expect(service.login('user@example.com', 'pass')).rejects.toThrow(
-        'Network error',
+        InternalServerErrorException,
       );
     });
   });

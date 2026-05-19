@@ -3,7 +3,9 @@ import {
   AuthFlowType,
   CognitoIdentityProviderClient,
   InitiateAuthCommand,
+  InvalidPasswordException,
   NotAuthorizedException,
+  ResourceNotFoundException,
   TooManyRequestsException,
   UserNotConfirmedException,
   UserNotFoundException,
@@ -12,6 +14,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  InternalServerErrorException,
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -25,11 +28,19 @@ export class AuthService {
   private readonly clientSecret: string;
 
   constructor(private readonly config: ConfigService) {
+    const endpoint = config.get<string>('COGNITO_ENDPOINT');
     this.client = new CognitoIdentityProviderClient({
       region: config.getOrThrow<string>('AWS_REGION'),
+      ...(endpoint && { endpoint }),
     });
     this.clientId = config.getOrThrow<string>('COGNITO_CLIENT_ID');
-    this.clientSecret = config.getOrThrow<string>('COGNITO_CLIENT_SECRET');
+    if (!this.clientId) {
+      throw new Error(
+        'COGNITO_CLIENT_ID is empty — run: docker compose up cognito-setup, then copy the printed IDs into .env.local',
+      );
+    }
+    // Empty in local dev (cognito-local client has no secret); set in production.
+    this.clientSecret = config.get<string>('COGNITO_CLIENT_SECRET') ?? '';
   }
 
   async login(username: string, password: string) {
@@ -42,7 +53,7 @@ export class AuthService {
           AuthParameters: {
             USERNAME: username,
             PASSWORD: password,
-            SECRET_HASH: this.secretHash(username),
+            ...this.secretHashParam(username),
           },
         }),
       );
@@ -56,11 +67,7 @@ export class AuthService {
         tokenType: AuthenticationResult!.TokenType,
       };
     } catch (err) {
-      this.logger.warn(
-        { username, error: (err as Error).name },
-        'login failed',
-      );
-      this.handleCognitoError(err);
+      this.handleCognitoError(err, { username, operation: 'login' });
     }
   }
 
@@ -73,7 +80,7 @@ export class AuthService {
           ClientId: this.clientId,
           AuthParameters: {
             REFRESH_TOKEN: refreshToken,
-            SECRET_HASH: this.secretHash(username),
+            ...this.secretHashParam(username),
           },
         }),
       );
@@ -86,37 +93,65 @@ export class AuthService {
         tokenType: AuthenticationResult!.TokenType,
       };
     } catch (err) {
-      this.logger.warn(
-        { username, error: (err as Error).name },
-        'token refresh failed',
-      );
-      this.handleCognitoError(err);
+      this.handleCognitoError(err, { username, operation: 'refresh' });
     }
   }
 
-  // SECRET_HASH is required because the Cognito app client has generate_secret = true.
-  // Formula: Base64(HMAC-SHA256(username + clientId, clientSecret))
-  private secretHash(username: string): string {
-    return crypto
-      .createHmac('sha256', this.clientSecret)
-      .update(username + this.clientId)
-      .digest('base64');
+  // Returns { SECRET_HASH } when the client has a secret (production), or {}
+  // when it does not (local dev with cognito-local, which has no client secret).
+  private secretHashParam(username: string): Record<string, string> {
+    if (!this.clientSecret) return {};
+    return {
+      SECRET_HASH: crypto
+        .createHmac('sha256', this.clientSecret)
+        .update(username + this.clientId)
+        .digest('base64'),
+    };
   }
 
-  private handleCognitoError(err: unknown): never {
+  private handleCognitoError(
+    err: unknown,
+    ctx: { username: string; operation: string },
+  ): never {
+    const name = (err as Error)?.name ?? '';
+
     if (
       err instanceof NotAuthorizedException ||
       err instanceof UserNotFoundException ||
-      err instanceof UserNotConfirmedException
+      err instanceof UserNotConfirmedException ||
+      err instanceof InvalidPasswordException ||
+      name === 'NotAuthorizedException' ||
+      name === 'UserNotFoundException' ||
+      name === 'UserNotConfirmedException' ||
+      name === 'InvalidPasswordException'
     ) {
+      this.logger.warn({ ...ctx, error: name }, 'authentication failed');
       throw new UnauthorizedException('Invalid credentials');
     }
-    if (err instanceof TooManyRequestsException) {
-      throw new HttpException(
-        'Too many requests',
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+
+    if (
+      err instanceof TooManyRequestsException ||
+      name === 'TooManyRequestsException'
+    ) {
+      this.logger.warn({ ...ctx }, 'cognito rate limit reached');
+      throw new HttpException('Too many requests', HttpStatus.TOO_MANY_REQUESTS);
     }
-    throw err;
+
+    if (
+      err instanceof ResourceNotFoundException ||
+      name === 'ResourceNotFoundException'
+    ) {
+      this.logger.error(
+        { ...ctx, message: (err as Error).message },
+        'cognito resource not found — verify COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID in .env.local',
+      );
+      throw new InternalServerErrorException('Authentication service error');
+    }
+
+    this.logger.error(
+      { ...ctx, errorName: name, errorMessage: (err as Error)?.message, err },
+      'unexpected cognito error',
+    );
+    throw new InternalServerErrorException('Authentication service error');
   }
 }

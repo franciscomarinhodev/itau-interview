@@ -11,5 +11,37 @@ services:
       - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/01-create-table.sh
       - localstack_data:/var/lib/localstack
 
+  cognito-local:
+    image: jagregory/cognito-local:latest
+    ports:
+      - "9229:9229"
+    volumes:
+      - cognito_data:/app/.cognito
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - |
+          node -e "require('http').request({port:9229,method:'POST'},r=>process.exit(0)).on('error',()=>process.exit(1)).end()"
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  cognito-setup:
+    image: amazon/aws-cli:latest
+    depends_on:
+      cognito-local:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/scripts/cognito-setup.sh"]
+    volumes:
+      - ./scripts/cognito-setup.sh:/scripts/cognito-setup.sh:ro
+    environment:
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+      - AWS_DEFAULT_REGION=us-east-1
+      - COGNITO_ENDPOINT=http://cognito-local:9229
+    restart: "no"
+
 volumes:
   localstack_data:
+  cognito_data:
