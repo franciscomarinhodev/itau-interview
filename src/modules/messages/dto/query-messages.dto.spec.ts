@@ -14,8 +14,12 @@ describe('QueryMessagesDto', () => {
     it('fails when no params are provided', async () => {
       const errors = await validate(build({}));
       expect(errors.length).toBeGreaterThan(0);
-      const messages = errors.flatMap((e) => Object.values(e.constraints ?? {}));
-      expect(messages.some((m) => m.includes('sender') || m.includes('startDate'))).toBe(true);
+      const messages = errors.flatMap((e) =>
+        Object.values(e.constraints ?? {}),
+      );
+      expect(
+        messages.some((m) => m.includes('sender') || m.includes('startDate')),
+      ).toBe(true);
     });
   });
 
@@ -58,14 +62,22 @@ describe('QueryMessagesDto', () => {
     });
 
     it('fails when startDate is not a valid ISO 8601 date', async () => {
-      const errors = await validate(build({ startDate: 'not-a-date', endDate: END }));
-      const messages = errors.flatMap((e) => Object.values(e.constraints ?? {}));
+      const errors = await validate(
+        build({ startDate: 'not-a-date', endDate: END }),
+      );
+      const messages = errors.flatMap((e) =>
+        Object.values(e.constraints ?? {}),
+      );
       expect(messages.some((m) => m.includes('ISO 8601'))).toBe(true);
     });
 
     it('fails when endDate is not a valid ISO 8601 date', async () => {
-      const errors = await validate(build({ startDate: START, endDate: 'bad' }));
-      const messages = errors.flatMap((e) => Object.values(e.constraints ?? {}));
+      const errors = await validate(
+        build({ startDate: START, endDate: 'bad' }),
+      );
+      const messages = errors.flatMap((e) =>
+        Object.values(e.constraints ?? {}),
+      );
       expect(messages.some((m) => m.includes('ISO 8601'))).toBe(true);
     });
   });
@@ -77,7 +89,9 @@ describe('QueryMessagesDto', () => {
     });
 
     it('passes when all three params are provided', async () => {
-      const errors = await validate(build({ sender: SENDER_UUID, startDate: START, endDate: END }));
+      const errors = await validate(
+        build({ sender: SENDER_UUID, startDate: START, endDate: END }),
+      );
       expect(errors).toHaveLength(0);
     });
   });

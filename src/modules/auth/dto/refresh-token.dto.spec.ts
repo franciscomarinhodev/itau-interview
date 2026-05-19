@@ -10,19 +10,26 @@ const VALID_REFRESH_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.valid.refresh';
 describe('RefreshTokenDto', () => {
   it('passes with valid username and refreshToken', async () => {
     const errors = await validate(
-      build({ username: 'user@example.com', refreshToken: VALID_REFRESH_TOKEN }),
+      build({
+        username: 'user@example.com',
+        refreshToken: VALID_REFRESH_TOKEN,
+      }),
     );
     expect(errors).toHaveLength(0);
   });
 
   describe('username', () => {
     it('fails when missing', async () => {
-      const errors = await validate(build({ refreshToken: VALID_REFRESH_TOKEN }));
+      const errors = await validate(
+        build({ refreshToken: VALID_REFRESH_TOKEN }),
+      );
       expect(errors.some((e) => e.property === 'username')).toBe(true);
     });
 
     it('fails when empty string', async () => {
-      const errors = await validate(build({ username: '', refreshToken: VALID_REFRESH_TOKEN }));
+      const errors = await validate(
+        build({ username: '', refreshToken: VALID_REFRESH_TOKEN }),
+      );
       expect(errors.some((e) => e.property === 'username')).toBe(true);
     });
   });

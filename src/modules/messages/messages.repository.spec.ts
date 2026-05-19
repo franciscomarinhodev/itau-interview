@@ -2,7 +2,7 @@ import { InMemoryMessagesRepository } from './messages.repository';
 import { MessageStatus } from './entities/message.entity';
 
 const ALICE = '550e8400-e29b-41d4-a716-446655440000';
-const BOB   = '550e8400-e29b-41d4-a716-446655440001';
+const BOB = '550e8400-e29b-41d4-a716-446655440001';
 const CAROL = '550e8400-e29b-41d4-a716-446655440002';
 
 describe('InMemoryMessagesRepository', () => {
@@ -98,14 +98,19 @@ describe('InMemoryMessagesRepository', () => {
   describe('updateStatus', () => {
     it('updates and returns the message with the new status', async () => {
       const created = await repository.create('Hi', ALICE);
-      const updated = await repository.updateStatus(created.id, MessageStatus.READ);
+      const updated = await repository.updateStatus(
+        created.id,
+        MessageStatus.READ,
+      );
 
       expect(updated?.status).toBe(MessageStatus.READ);
       expect(updated?.id).toBe(created.id);
     });
 
     it('returns undefined for an unknown id', async () => {
-      expect(await repository.updateStatus('ghost', MessageStatus.READ)).toBeUndefined();
+      expect(
+        await repository.updateStatus('ghost', MessageStatus.READ),
+      ).toBeUndefined();
     });
 
     it('persists the status change', async () => {

@@ -7,7 +7,10 @@ export class CreateMessageDto {
   @IsNotEmpty()
   content: string;
 
-  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000', description: 'UUID of the authenticated user' })
+  @ApiProperty({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    description: 'UUID of the authenticated user',
+  })
   @IsUUID()
   sender: string;
 }

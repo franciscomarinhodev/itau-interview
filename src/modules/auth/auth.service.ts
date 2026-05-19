@@ -56,7 +56,10 @@ export class AuthService {
         tokenType: AuthenticationResult!.TokenType,
       };
     } catch (err) {
-      this.logger.warn({ username, error: (err as Error).name }, 'login failed');
+      this.logger.warn(
+        { username, error: (err as Error).name },
+        'login failed',
+      );
       this.handleCognitoError(err);
     }
   }
@@ -83,7 +86,10 @@ export class AuthService {
         tokenType: AuthenticationResult!.TokenType,
       };
     } catch (err) {
-      this.logger.warn({ username, error: (err as Error).name }, 'token refresh failed');
+      this.logger.warn(
+        { username, error: (err as Error).name },
+        'token refresh failed',
+      );
       this.handleCognitoError(err);
     }
   }

@@ -10,7 +10,7 @@ import { MessagesRepository } from '../src/modules/messages/repositories/message
 const BASE = '/api/v1/messages';
 
 const ALICE = '550e8400-e29b-41d4-a716-446655440000';
-const BOB   = '550e8400-e29b-41d4-a716-446655440001';
+const BOB = '550e8400-e29b-41d4-a716-446655440001';
 const CAROL = '550e8400-e29b-41d4-a716-446655440002';
 const NO_MESSAGES_SENDER = '550e8400-e29b-41d4-a716-446655440099';
 
